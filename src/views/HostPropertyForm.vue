@@ -97,12 +97,20 @@
         </div>
 
         <div class="form-row">
-          <label>房源图片 URL（多张用换行分隔）</label>
-          <textarea
-            v-model="imageUrlsText"
-            rows="3"
-            placeholder="目前先手动粘贴图片地址，一行一条；后续可接入文件上传。"
-          ></textarea>
+          <label>房源图片（可上传多张）</label>
+          <input type="file" multiple accept="image/*" @change="onFilesChange" />
+          <p style="margin-top: 4px; font-size: 12px; color: #6b7280">
+            选择多张图片后，在提交发布时会自动上传到阿里云 OSS 并关联到房源。
+          </p>
+          <div v-if="uploadedImageUrls.length" style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px">
+            <img
+              v-for="url in uploadedImageUrls"
+              :key="url"
+              :src="url"
+              alt="房源图片预览"
+              style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px; border: 1px solid #e5e7eb"
+            />
+          </div>
         </div>
 
         <div class="form-actions">
@@ -120,7 +128,8 @@
 import {
   createPropertyApi,
   updatePropertyApi,
-  getMyPropertiesApi
+  getMyPropertiesApi,
+  uploadPropertyImagesApi
 } from '@/api/hostProperty'
 
 export default {
@@ -143,7 +152,10 @@ export default {
         checkInTime: '',
         checkOutTime: ''
       },
-      imageUrlsText: '',
+      // 选择的本地图片文件
+      files: [],
+      // 上传成功后返回的图片 URL（用于简单预览）
+      uploadedImageUrls: [],
       loading: false
     }
   },
@@ -192,6 +204,10 @@ export default {
         this.loading = false
       }
     },
+    onFilesChange(e) {
+      const files = e.target.files
+      this.files = files ? Array.from(files) : []
+    },
     async handleSubmit() {
       if (!this.form.title || !this.form.pricePerNight) {
         alert('请至少填写标题和每晚价格')
@@ -200,15 +216,22 @@ export default {
       const payload = {
         ...this.form
       }
-      const urls = this.imageUrlsText
-        .split('\n')
-        .map((s) => s.trim())
-        .filter((s) => s)
-      if (!this.isEdit && urls.length > 0) {
-        payload.imageUrls = urls
-      }
       try {
         this.loading = true
+        let imageUrls = []
+        // 新增房源时，如选择了本地图片，则先上传图片到 OSS，拿到图片 URL 再一起提交
+        if (!this.isEdit && this.files.length > 0) {
+          const formData = new FormData()
+          this.files.forEach((file) => {
+            formData.append('files', file)
+          })
+          const res = await uploadPropertyImagesApi(formData)
+          imageUrls = (res.data && res.data.data) || []
+          this.uploadedImageUrls = imageUrls
+        }
+        if (!this.isEdit && imageUrls.length > 0) {
+          payload.imageUrls = imageUrls
+        }
         if (this.isEdit) {
           await updatePropertyApi(this.$route.params.id, payload)
         } else {

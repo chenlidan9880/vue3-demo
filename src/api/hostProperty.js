@@ -30,6 +30,11 @@ export function updatePricingApi(id, data) {
   return request.put(`/api/host/properties/${id}/pricing`, data)
 }
 
+// 房东：上传房源图片到 OSS
+export function uploadPropertyImagesApi(formData) {
+  return request.post('/api/host/upload/images', formData)
+}
+
 
 
 

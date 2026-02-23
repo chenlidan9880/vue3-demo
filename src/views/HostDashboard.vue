@@ -27,14 +27,6 @@
           <p>查看每个房源的预约/订单和入住时间。</p>
         </div>
       </section>
-
-      <section class="info">
-        <h3>温馨提示</h3>
-        <ul>
-          <li>当前仅实现房东控制台界面，具体“发布房源、管理房源、价格策略”等功能会在后续任务中逐步接入后端接口。</li>
-          <li>你的账号类型为 <strong>房东</strong>，租客和游客不会看到本页面。</li>
-        </ul>
-      </section>
     </main>
   </div>
 </template>
