@@ -97,19 +97,23 @@
         </div>
 
         <div class="form-row">
-          <label>房源图片（可上传多张）</label>
+          <label>房源图片（可上传多张，点击选择封面）</label>
           <input type="file" multiple accept="image/*" @change="onFilesChange" />
           <p style="margin-top: 4px; font-size: 12px; color: #6b7280">
-            选择多张图片后，在提交发布时会自动上传到阿里云 OSS 并关联到房源。
+            选择多张图片后，点击某张图片可将其设为封面。
           </p>
-          <div v-if="uploadedImageUrls.length" style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px">
-            <img
-              v-for="url in uploadedImageUrls"
+          <div v-if="uploadedImageUrls.length" class="image-preview-list">
+            <div
+              v-for="(url, index) in uploadedImageUrls"
               :key="url"
-              :src="url"
-              alt="房源图片预览"
-              style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px; border: 1px solid #e5e7eb"
-            />
+              class="image-preview-item"
+              :class="{ 'cover-image': coverImageIndex === index }"
+              @click="setCoverImage(index)"
+            >
+              <img :src="url" alt="房源图片预览" />
+              <div v-if="coverImageIndex === index" class="cover-badge">封面</div>
+              <button type="button" class="remove-btn" @click.stop="removeImage(index)">×</button>
+            </div>
           </div>
         </div>
 
@@ -156,6 +160,8 @@ export default {
       files: [],
       // 上传成功后返回的图片 URL（用于简单预览）
       uploadedImageUrls: [],
+      // 封面图索引
+      coverImageIndex: 0,
       loading: false
     }
   },
@@ -207,6 +213,39 @@ export default {
     onFilesChange(e) {
       const files = e.target.files
       this.files = files ? Array.from(files) : []
+      // 自动上传图片
+      if (this.files.length > 0) {
+        this.uploadImages()
+      }
+    },
+    async uploadImages() {
+      if (this.files.length === 0) return
+      try {
+        this.loading = true
+        const formData = new FormData()
+        this.files.forEach((file) => {
+          formData.append('files', file)
+        })
+        const res = await uploadPropertyImagesApi(formData)
+        const newUrls = (res.data && res.data.data) || []
+        this.uploadedImageUrls = [...this.uploadedImageUrls, ...newUrls]
+        // 清空文件选择，允许再次选择
+        this.files = []
+      } catch (e) {
+        alert(e?.response?.data?.message || '图片上传失败')
+      } finally {
+        this.loading = false
+      }
+    },
+    setCoverImage(index) {
+      this.coverImageIndex = index
+    },
+    removeImage(index) {
+      this.uploadedImageUrls.splice(index, 1)
+      // 如果删除的是封面或封面索引超出范围，重置为0
+      if (this.coverImageIndex === index || this.coverImageIndex >= this.uploadedImageUrls.length) {
+        this.coverImageIndex = 0
+      }
     },
     async handleSubmit() {
       if (!this.form.title || !this.form.pricePerNight) {
@@ -218,26 +257,18 @@ export default {
       }
       try {
         this.loading = true
-        let imageUrls = []
-        // 新增房源时，如选择了本地图片，则先上传图片到 OSS，拿到图片 URL 再一起提交
-        if (!this.isEdit && this.files.length > 0) {
-          const formData = new FormData()
-          this.files.forEach((file) => {
-            formData.append('files', file)
-          })
-          const res = await uploadPropertyImagesApi(formData)
-          imageUrls = (res.data && res.data.data) || []
-          this.uploadedImageUrls = imageUrls
-        }
-        if (!this.isEdit && imageUrls.length > 0) {
-          payload.imageUrls = imageUrls
+        // 如果有已上传的图片，添加到payload
+        if (!this.isEdit && this.uploadedImageUrls.length > 0) {
+          payload.imageUrls = this.uploadedImageUrls
+          payload.coverImageIndex = this.coverImageIndex
         }
         if (this.isEdit) {
           await updatePropertyApi(this.$route.params.id, payload)
+          alert('保存成功')
         } else {
           await createPropertyApi(payload)
+          alert('房源发布成功，请等待管理员审核后上架')
         }
-        alert('保存成功')
         this.goBack()
       } catch (e) {
         alert(e?.response?.data?.message || '保存失败')
@@ -359,6 +390,75 @@ export default {
 .btn-outline:hover {
   background: #42b983;
   color: #ffffff;
+}
+
+/* 图片预览列表样式 */
+.image-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.image-preview-item {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.image-preview-item:hover {
+  border-color: #42b983;
+}
+
+.image-preview-item.cover-image {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px #f59e0b;
+}
+
+.image-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  color: #ffffff;
+  font-size: 12px;
+  padding: 4px 8px;
+  text-align: center;
+}
+
+.remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  border: none;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.remove-btn:hover {
+  background: rgba(239, 68, 68, 0.9);
 }
 
 @media (max-width: 768px) {

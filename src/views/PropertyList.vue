@@ -11,7 +11,7 @@
           v-model="filters.keyword"
           class="input"
           type="text"
-          placeholder="搜索城市 / 标题关键字"
+          placeholder="搜索城市 / 标题 / 地址"
           @keyup.enter="fetchList"
         />
         <select v-model="filters.roomType" class="select" @change="fetchList">
@@ -25,6 +25,60 @@
       </div>
     </header>
 
+    <!-- 高级筛选 -->
+    <section class="advanced-filter">
+      <div class="filter-row">
+        <div class="filter-item">
+          <label>城市</label>
+          <select v-model="filters.city" class="select" @change="fetchList">
+            <option value="">城市不限</option>
+            <option value="北京">北京</option>
+            <option value="上海">上海</option>
+            <option value="广州">广州</option>
+            <option value="深圳">深圳</option>
+            <option value="杭州">杭州</option>
+            <option value="成都">成都</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <label>房源类型</label>
+          <select v-model="filters.propertyType" class="select" @change="fetchList">
+            <option value="">类型不限</option>
+            <option value="1">整租</option>
+            <option value="2">合租</option>
+            <option value="3">单间</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <label>价格区间</label>
+          <div class="price-range">
+            <input v-model.number="filters.minPrice" type="number" placeholder="最低" class="input small" @change="fetchList" />
+            <span class="separator">-</span>
+            <input v-model.number="filters.maxPrice" type="number" placeholder="最高" class="input small" @change="fetchList" />
+          </div>
+        </div>
+        <div class="filter-item">
+          <label>可住人数</label>
+          <select v-model="filters.minGuests" class="select" @change="fetchList">
+            <option value="">人数不限</option>
+            <option value="1">1人</option>
+            <option value="2">2人</option>
+            <option value="4">4人</option>
+            <option value="6">6人</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <label>排序方式</label>
+          <select v-model="filters.sortBy" class="select" @change="fetchList">
+            <option value="created_desc">最新发布</option>
+            <option value="price_asc">价格从低到高</option>
+            <option value="price_desc">价格从高到低</option>
+            <option value="rating_desc">评分从高到低</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
     <!-- 内容区域 -->
     <main class="content">
       <div v-if="loading" class="state tips">正在加载房源，请稍候...</div>
@@ -32,14 +86,20 @@
       <div v-else-if="list.length === 0" class="state empty">暂时没有找到符合条件的房源</div>
       <div v-else class="grid">
         <article
-          v-for="item in filteredList"
+          v-for="item in list"
           :key="item.id"
           class="card"
           @click="goDetail(item.id)"
         >
           <div class="card-cover">
-            <!-- 目前没有图片字段，先用渐变背景占位 -->
-            <div class="cover-placeholder">
+            <!-- 有封面图则显示图片，否则显示渐变背景占位 -->
+            <img
+              v-if="item.coverImageUrl"
+              :src="item.coverImageUrl"
+              class="cover-image"
+              :alt="item.title"
+            />
+            <div v-else class="cover-placeholder">
               <span class="cover-title">{{ item.city || '热门城市' }}</span>
             </div>
             <span class="price-tag">￥{{ item.pricePerNight }} / 晚</span>
@@ -82,28 +142,17 @@ export default {
       error: null,
       filters: {
         keyword: '',
-        roomType: ''
+        city: '',
+        district: '',
+        roomType: '',
+        propertyType: '',
+        minPrice: null,
+        maxPrice: null,
+        minGuests: null,
+        sortBy: 'created_desc',
+        page: 1,
+        pageSize: 10
       }
-    }
-  },
-  computed: {
-    // 前端简单过滤（后续可以改成带参数请求后端）
-    filteredList() {
-      let result = this.list
-      if (this.filters.keyword) {
-        const kw = this.filters.keyword.toLowerCase()
-        result = result.filter((item) => {
-          return (
-            (item.title && item.title.toLowerCase().includes(kw)) ||
-            (item.city && item.city.toLowerCase().includes(kw))
-          )
-        })
-      }
-      if (this.filters.roomType) {
-        const rt = Number(this.filters.roomType)
-        result = result.filter((item) => Number(item.roomType) === rt)
-      }
-      return result
     }
   },
   async created() {
@@ -114,7 +163,13 @@ export default {
       this.loading = true
       this.error = null
       try {
-        const res = await request.get('/api/properties')
+        // 修复价格参数，避免传递负数和空值
+        const searchParams = {
+          ...this.filters,
+          minPrice: this.filters.minPrice || 0,
+          maxPrice: this.filters.maxPrice > 0 ? this.filters.maxPrice : 999999
+        }
+        const res = await request.post('/api/properties/search', searchParams)
         if (res.data && res.data.code === 200 && Array.isArray(res.data.data)) {
           this.list = res.data.data
         } else {
@@ -245,6 +300,12 @@ export default {
   overflow: hidden;
 }
 
+.cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .cover-placeholder {
   height: 100%;
   background: linear-gradient(135deg, #42b983, #2c3e50);
@@ -346,6 +407,46 @@ export default {
   background-color: #35a372;
 }
 
+.advanced-filter {
+  background: #ffffff;
+  padding: 16px 40px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.filter-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-end;
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 120px;
+}
+
+.filter-item label {
+  font-size: 13px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.price-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.input.small {
+  width: 80px;
+}
+
+.separator {
+  color: #9ca3af;
+}
+
 @media (max-width: 768px) {
   .filter-bar {
     flex-direction: column;
@@ -361,6 +462,25 @@ export default {
   .input {
     flex: 1;
     min-width: 160px;
+  }
+
+  .filter-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .filter-item {
+    width: 100%;
+  }
+
+  .price-range {
+    width: 100%;
+  }
+
+  .input.small {
+    flex: 1;
+    width: auto;
   }
 }
 </style>

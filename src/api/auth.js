@@ -15,5 +15,15 @@ export function getCurrentUserApi() {
   return request.get('/api/auth/me')
 }
 
+// 发送短信验证码
+export function sendVerificationCodeApi(data) {
+  return request.post('/api/auth/send-code', data)
+}
+
+// 发送邮箱验证码
+export function sendEmailVerificationCodeApi(data) {
+  return request.post('/api/auth/send-email-code', data)
+}
+
 
 

@@ -4,12 +4,12 @@
       <h2>用户登录</h2>
       <form @submit.prevent="handleLogin">
         <div class="form-group">
-          <label for="username">用户名：</label>
+          <label for="username">账号：</label>
           <input
             id="username"
             v-model="formData.username"
             type="text"
-            placeholder="请输入用户名"
+            placeholder="请输入手机号或QQ邮箱"
             required
           />
         </div>
@@ -28,9 +28,6 @@
           <router-link to="/register" class="btn btn-link">还没有账号？去注册</router-link>
         </div>
       </form>
-      <div class="back-home">
-        <router-link to="/">返回首页</router-link>
-      </div>
     </div>
   </div>
 </template>
@@ -73,7 +70,6 @@ export default {
         localStorage.setItem('token', data.token)
         localStorage.setItem('userInfo', JSON.stringify(data))
 
-        alert('登录成功')
         // 根据用户类型跳转到不同首页：
         // 1-租客 → 普通用户首页；2-房东 → 房东控制台；3-管理员 → 管理员控制台
         const userType = data.userType
@@ -100,104 +96,116 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 80vh;
+  min-height: 100vh;
   padding: 20px;
+  background-image: url('@/assets/beijing.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  position: relative;
+}
+
+.login-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  z-index: 0;
 }
 
 .login-box {
-  background: white;
-  padding: 40px;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.98);
+  padding: 48px 56px;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
   width: 100%;
-  max-width: 400px;
+  max-width: 480px;
+  position: relative;
+  z-index: 1;
 }
 
 h2 {
   text-align: center;
   color: #2c3e50;
-  margin-bottom: 30px;
+  margin: 0 0 36px 0;
+  font-size: 28px;
+  font-weight: 600;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   color: #555;
   font-weight: 500;
+  font-size: 15px;
 }
 
 input {
   width: 100%;
-  padding: 12px;
+  padding: 14px 18px;
   border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
+  border-radius: 8px;
+  font-size: 16px;
   box-sizing: border-box;
-  transition: border-color 0.3s;
+  transition: border-color 0.2s;
+  height: 48px;
 }
 
 input:focus {
   outline: none;
-  /* border-color: #42b983; */
-  border-color: #FFEFB0;
-  border-color: #000000;
-
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .form-actions {
-  margin-top: 30px;
+  margin-top: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .btn {
   width: 100%;
-  padding: 12px;
+  padding: 14px;
   border: none;
-  border-radius: 4px;
-  font-size: 16px;
+  border-radius: 10px;
+  font-size: 17px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
+  text-align: center;
+  text-decoration: none;
 }
 
 .btn-login {
-  background-color: #42b983;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   color: white;
-  margin-bottom: 10px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
 }
 
 .btn-login:hover {
-  background-color: #35a372;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
 }
 
 .btn-link {
   background-color: transparent;
-  color: #42b983;
-  text-decoration: none;
-  display: block;
-  text-align: center;
+  color: #3b82f6;
+  font-size: 15px;
   padding: 10px;
 }
 
 .btn-link:hover {
   text-decoration: underline;
-}
-
-.back-home {
-  margin-top: 20px;
-  text-align: center;
-}
-
-.back-home a {
-  color: #666;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.back-home a:hover {
-  color: #42b983;
 }
 </style>
 

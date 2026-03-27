@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // 创建 Axios 实例
 const request = axios.create({
-  baseURL: 'http://localhost:8082', // 后端服务地址
+  // baseURL 不设置，让请求通过代理转发到后端
   timeout: 10000
 })
 
@@ -20,21 +20,3 @@ request.interceptors.request.use(
 )
 
 export default request
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

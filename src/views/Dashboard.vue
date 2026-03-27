@@ -7,8 +7,19 @@
         <p class="subtitle">欢迎回来，{{ userInfo.username || '用户' }}</p>
       </div>
       <div class="user-actions">
+        <button class="message-btn" @click="goToMessages" title="在线聊天">
+          <span class="message-icon">💬</span>
+          <span v-if="unreadCount > 0" class="unread-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+        </button>
+        <button class="message-btn" @click="goToNotifications" title="通知中心">
+          <span class="message-icon">🔔</span>
+          <span v-if="notificationCount > 0" class="unread-badge">{{ notificationCount > 99 ? '99+' : notificationCount }}</span>
+        </button>
         <span class="role-tag">当前角色：{{ roleText }}</span>
-        <button class="btn btn-outline" @click="logout">退出登录</button>
+        <button class="profile-btn" @click="goToProfile">
+          <span class="profile-icon">👤</span>
+          <span class="profile-text">个人中心</span>
+        </button>
       </div>
     </header>
 
@@ -23,6 +34,24 @@
           <h2>📅 我的订单</h2>
           <p>查看和管理你的预约订单，支持取消与查看详情。</p>
         </div>
+        <div class="card" v-if="userInfo.userType === 1" @click="goTo('myComplaints')">
+          <h2>⚠️ 我的投诉</h2>
+          <p>查看我的投诉记录和处理结果。</p>
+        </div>
+        <div class="card" @click="goTo('community')">
+          <h2>💬 社区问答</h2>
+          <p>与其他用户交流，分享民宿入住经验和旅行心得。</p>
+        </div>
+        <div class="card" @click="goToMessages">
+          <h2>💬 在线聊天</h2>
+          <p>与不同房源的客服进行实时沟通，解答您的疑问。</p>
+          <span v-if="unreadCount > 0" class="unread-indicator">{{ unreadCount }} 条未读</span>
+        </div>
+        <div class="card" @click="goToNotifications">
+          <h2>🔔 消息通知</h2>
+          <p>查看系统通知、订单状态、退款进度等重要消息。</p>
+          <span v-if="notificationCount > 0" class="unread-indicator">{{ notificationCount }} 条未读</span>
+        </div>
         <div class="card" v-if="userInfo.userType === 2" @click="goTo('hostProperties')">
           <h2>🏠 房东房源管理</h2>
           <p>发布新的民宿房源，管理现有房源的价格与状态。</p>
@@ -33,19 +62,7 @@
         </div>
       </section>
 
-      <!-- 账户概览 -->
-      <section class="status-section">
-        <h3>账户概览</h3>
-        <ul>
-          <li>用户ID：{{ userInfo.userId || userInfo.id }}</li>
-          <li>用户名：{{ userInfo.username }}</li>
-          <li v-if="userInfo.email">邮箱：{{ userInfo.email }}</li>
-          <li v-if="userInfo.phone">手机号：{{ userInfo.phone }}</li>
-        </ul>
-        <div class="profile-link">
-          <button class="btn btn-primary" @click="goToProfile">进入个人中心</button>
-        </div>
-      </section>
+
     </main>
   </div>
 </template>
@@ -57,7 +74,9 @@ export default {
     return {
       userInfo: {},
       loading: true,
-      error: null
+      error: null,
+      notificationCount: 0,
+      unreadCount: 0
     }
   },
   computed: {
@@ -71,6 +90,8 @@ export default {
   },
   async created() {
     await this.fetchCurrentUser()
+    await this.fetchNotificationCount()
+    await this.fetchUnreadCount()
   },
   methods: {
     async fetchCurrentUser() {
@@ -101,15 +122,47 @@ export default {
       if (type === 'search') {
         this.$router.push('/properties')
       } else if (type === 'orders') {
-        alert('这里将来跳转到"我的订单"页面')
+        this.$router.push('/bookings')
+      } else if (type === 'myComplaints') {
+        this.$router.push('/my-complaints')
+      } else if (type === 'community') {
+        this.$router.push('/community')
       } else if (type === 'hostProperties') {
-        alert('这里将来跳转到"房东房源管理"页面')
+        this.$router.push('/host/properties')
       } else if (type === 'admin') {
-        alert('这里将来跳转到"管理员控制台"页面')
+        this.$router.push('/admin')
       }
     },
     goToProfile() {
       this.$router.push('/profile')
+    },
+    goToMessages() {
+      this.$router.push('/messages')
+    },
+    goToNotifications() {
+      this.$router.push('/notifications')
+    },
+    async fetchNotificationCount() {
+      try {
+        const request = await import('@/api/request')
+        const res = await request.default.get('/api/notifications/unread-count')
+        if (res.data && res.data.code === 200) {
+          this.notificationCount = res.data.data.total || 0
+        }
+      } catch (e) {
+        console.error('获取未读通知数量失败:', e)
+      }
+    },
+    async fetchUnreadCount() {
+      try {
+        const request = await import('@/api/request')
+        const res = await request.default.get('/api/messages/unread-count')
+        if (res.data && res.data.code === 200) {
+          this.unreadCount = res.data.data || 0
+        }
+      } catch (e) {
+        console.error('获取未读消息数量失败:', e)
+      }
     }
   }
 }
@@ -150,9 +203,82 @@ export default {
   gap: 12px;
 }
 
+.message-btn {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.message-btn:hover {
+  transform: scale(1.1);
+}
+
+.unread-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  background: #ff4d4f;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  box-shadow: 0 2px 4px rgba(255, 77, 79, 0.3);
+}
+
 .role-tag {
   font-size: 14px;
   color: #666;
+}
+
+.profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+  color: #666;
+}
+
+.profile-btn:hover {
+  background: #f5f5f5;
+  border-color: #d0d0d0;
+}
+
+.profile-icon {
+  font-size: 16px;
+}
+
+.profile-text {
+  font-weight: 400;
+}
+
+.unread-indicator {
+  display: inline-block;
+  background: #ff4d4f;
+  color: white;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-top: 8px;
+  font-weight: 500;
 }
 
 .dashboard-main {
@@ -193,32 +319,6 @@ export default {
   font-size: 14px;
 }
 
-.status-section {
-  background: #ffffff;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  max-width: 420px;
-}
-
-.status-section h3 {
-  margin: 0 0 12px;
-  font-size: 16px;
-  color: #2c3e50;
-}
-
-.status-section ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.status-section li {
-  font-size: 14px;
-  color: #555;
-  margin-bottom: 6px;
-}
-
 .btn {
   padding: 10px 20px;
   text-decoration: none;
@@ -239,12 +339,6 @@ export default {
 .btn-outline:hover {
   background-color: #42b983;
   color: #fff;
-}
-
-.profile-link {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
 }
 
 .btn-primary {

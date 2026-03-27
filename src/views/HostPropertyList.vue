@@ -18,7 +18,8 @@
             <th>标题</th>
             <th>城市</th>
             <th>价格/晚</th>
-            <th>状态</th>
+            <th>审核状态</th>
+            <th>上架状态</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -27,6 +28,11 @@
             <td>{{ item.title }}</td>
             <td>{{ item.city }} / {{ item.district }}</td>
             <td>￥{{ item.pricePerNight }}</td>
+            <td>
+              <span :class="['verify-tag', `verify-${parseInt(item.isVerified)}`]">
+                {{ verifyText(parseInt(item.isVerified)) }}
+              </span>
+            </td>
             <td>
               <span :class="['status-tag', `status-${item.status}`]">
                 {{ statusText(item.status) }}
@@ -37,14 +43,30 @@
               <button class="link" @click="openPricing(item)">设置价格</button>
               <button
                 class="link"
-                v-if="item.status !== 1"
+                v-if="item.status !== 1 && parseInt(item.isVerified) === 1"
                 @click="publish(item.id)"
               >
                 上架
               </button>
               <button
+                class="link disabled"
+                v-else-if="item.status !== 1 && parseInt(item.isVerified) === 0"
+                disabled
+                title="请等待管理员审核通过后再上架"
+              >
+                上架
+              </button>
+              <button
+                class="link disabled"
+                v-else-if="item.status !== 1 && parseInt(item.isVerified) === 2"
+                disabled
+                title="房源审核被驳回，请编辑后重新提交审核"
+              >
+                上架
+              </button>
+              <button
                 class="link"
-                v-else
+                v-else-if="item.status === 1"
                 @click="unpublish(item.id)"
               >
                 下架
@@ -128,7 +150,14 @@ export default {
     statusText(status) {
       if (status === 1) return '已上架'
       if (status === 2) return '维护中'
-      if (status === 3) return '已下架'
+      if (status === 3) return '待上架'
+      return '未知'
+    },
+    verifyText(isVerified) {
+      const status = parseInt(isVerified)
+      if (status === 0) return '待审核'
+      if (status === 1) return '已审核'
+      if (status === 2) return '已驳回'
       return '未知'
     },
     goCreate() {
@@ -258,6 +287,27 @@ export default {
   font-size: 12px;
 }
 
+.verify-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.verify-tag.verify-0 {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.verify-tag.verify-1 {
+  background: #ecfdf3;
+  color: #15803d;
+}
+
+.verify-tag.verify-2 {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 .status-1 {
   background: #ecfdf3;
   color: #15803d;
@@ -280,6 +330,11 @@ export default {
   cursor: pointer;
   font-size: 13px;
   margin-right: 8px;
+}
+
+.actions .link.disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
 }
 
 .btn {

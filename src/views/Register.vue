@@ -3,30 +3,67 @@
     <div class="register-box">
       <h2>用户注册</h2>
       <form @submit.prevent="handleRegister">
-        <div class="form-group">
-          <label for="username">用户名：</label>
+        <!-- 验证方式选择 -->
+        <div class="form-row">
+          <label class="section-label">验证方式：</label>
+          <div class="verify-type-selector">
+            <label class="radio-option" :class="{ active: verifyType === 'phone' }">
+              <input type="radio" v-model="verifyType" value="phone" name="verifyType" />
+              <span>📱 手机号</span>
+            </label>
+            <label class="radio-option" :class="{ active: verifyType === 'email' }">
+              <input type="radio" v-model="verifyType" value="email" name="verifyType" />
+              <span>📧 邮箱</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 手机号/邮箱输入 -->
+        <div class="form-row">
+          <label class="section-label">{{ verifyType === 'phone' ? '手机号：' : '邮箱：' }}</label>
           <input
-            id="username"
-            v-model="formData.username"
-            type="text"
-            placeholder="请输入用户名"
+            v-if="verifyType === 'phone'"
+            v-model="formData.phone"
+            type="tel"
+            placeholder="请输入手机号"
+            maxlength="11"
             required
           />
-        </div>
-        <div class="form-group">
-          <label for="email">邮箱：</label>
           <input
-            id="email"
+            v-else
             v-model="formData.email"
             type="email"
-            placeholder="请输入邮箱"
+            placeholder="请输入QQ邮箱"
             required
           />
         </div>
-        <div class="form-group">
-          <label for="password">密码：</label>
+
+        <!-- 验证码 -->
+        <div class="form-row">
+          <label class="section-label">验证码：</label>
+          <div class="code-input-group">
+            <input
+              v-model="formData.verificationCode"
+              type="text"
+              placeholder="请输入验证码"
+              maxlength="6"
+              required
+            />
+            <button
+              type="button"
+              class="btn-send-code"
+              :disabled="codeSending || countdown > 0"
+              @click="sendVerificationCode"
+            >
+              {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 密码 -->
+        <div class="form-row">
+          <label class="section-label">密码：</label>
           <input
-            id="password"
             v-model="formData.password"
             type="password"
             placeholder="请输入密码（至少6位）"
@@ -34,121 +71,182 @@
             minlength="6"
           />
         </div>
-        <div class="form-group">
-          <label for="confirmPassword">确认密码：</label>
+
+        <!-- 确认密码 -->
+        <div class="form-row">
+          <label class="section-label">确认密码：</label>
           <input
-            id="confirmPassword"
             v-model="formData.confirmPassword"
             type="password"
             placeholder="请再次输入密码"
             required
           />
         </div>
-        <div class="form-group">
-          <label>注册角色：</label>
+
+        <!-- 注册角色 -->
+        <div class="form-row">
+          <label class="section-label">注册角色：</label>
           <div class="role-selection">
-            <label class="role-option">
-              <input
-                type="radio"
-                v-model="formData.userType"
-                :value="1"
-                name="userType"
-              />
-              <span class="role-label">
-                <span class="role-icon">👤</span>
-                <span class="role-text">
-                  <strong>租客</strong>
-                  <small>预订民宿，享受住宿服务</small>
-                </span>
-              </span>
+            <label class="role-option" :class="{ active: formData.userType === 1 }">
+              <input type="radio" v-model="formData.userType" :value="1" name="userType" />
+              <span class="role-icon">👤</span>
+              <span class="role-name">租客</span>
             </label>
-            <label class="role-option">
-              <input
-                type="radio"
-                v-model="formData.userType"
-                :value="2"
-                name="userType"
-              />
-              <span class="role-label">
-                <span class="role-icon">🏠</span>
-                <span class="role-text">
-                  <strong>房东</strong>
-                  <small>发布房源，管理订单</small>
-                </span>
-              </span>
+            <label class="role-option" :class="{ active: formData.userType === 2 }">
+              <input type="radio" v-model="formData.userType" :value="2" name="userType" />
+              <span class="role-icon">🏠</span>
+              <span class="role-name">房东</span>
             </label>
           </div>
         </div>
+
         <div class="form-actions">
-          <button type="submit" class="btn btn-register">注册</button>
+          <button type="submit" class="btn btn-register" :disabled="loading">
+            {{ loading ? '注册中...' : '立即注册' }}
+          </button>
           <router-link to="/login" class="btn btn-link">已有账号？去登录</router-link>
         </div>
       </form>
-      <div class="back-home">
-        <router-link to="/">返回首页</router-link>
-      </div>
     </div>
   </div>
 </template>
 
 <script>
-import { registerApi } from '@/api/auth'
+import { registerApi, sendVerificationCodeApi, sendEmailVerificationCodeApi } from '@/api/auth'
 
 export default {
   name: 'RegisterPage',
   data() {
     return {
+      verifyType: 'phone',
       formData: {
-        username: '',
+        phone: '',
         email: '',
+        verificationCode: '',
         password: '',
         confirmPassword: '',
-        phone: '',
         userType: 1
       },
-      loading: false
+      loading: false,
+      codeSending: false,
+      countdown: 0,
+      countdownTimer: null
+    }
+  },
+  beforeUnmount() {
+    if (this.countdownTimer) {
+      clearInterval(this.countdownTimer)
     }
   },
   methods: {
+    isValidPhone(phone) {
+      return /^1[3-9]\d{9}$/.test(phone)
+    },
+
+    isValidEmail(email) {
+      return /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)
+    },
+
+    async sendVerificationCode() {
+      if (this.verifyType === 'phone') {
+        if (!this.formData.phone) {
+          alert('请输入手机号')
+          return
+        }
+        if (!this.isValidPhone(this.formData.phone)) {
+          alert('手机号格式不正确')
+          return
+        }
+        this.codeSending = true
+        try {
+          const res = await sendVerificationCodeApi({ phone: this.formData.phone })
+          if (res.data && res.data.code === 200) {
+            alert('验证码已发送，请查看手机短信（开发测试：查看后端控制台）')
+            this.startCountdown()
+          } else {
+            alert(res.data?.message || '发送失败')
+          }
+        } catch (e) {
+          alert('错误：' + (e?.response?.data?.message || '发送请求失败'))
+        } finally {
+          this.codeSending = false
+        }
+      } else {
+        if (!this.formData.email) {
+          alert('请输入邮箱')
+          return
+        }
+        if (!this.isValidEmail(this.formData.email)) {
+          alert('邮箱格式不正确')
+          return
+        }
+        this.codeSending = true
+        try {
+          const res = await sendEmailVerificationCodeApi({ email: this.formData.email })
+          if (res.data && res.data.code === 200) {
+            alert('验证码已发送，请查收邮件')
+            this.startCountdown()
+          } else {
+            alert(res.data?.message || '发送失败')
+          }
+        } catch (e) {
+          alert('错误：' + (e?.response?.data?.message || '发送请求失败'))
+        } finally {
+          this.codeSending = false
+        }
+      }
+    },
+
+    startCountdown() {
+      this.countdown = 60
+      this.countdownTimer = setInterval(() => {
+        this.countdown--
+        if (this.countdown <= 0) {
+          clearInterval(this.countdownTimer)
+        }
+      }, 1000)
+    },
+
     async handleRegister() {
-      // 基本校验
-      if (!this.formData.username || !this.formData.password) {
-        alert('用户名和密码必填')
+      if (!this.formData.verificationCode) {
+        alert('请输入验证码')
         return
       }
-
+      if (!this.formData.password) {
+        alert('请输入密码')
+        return
+      }
       if (this.formData.password.length < 6) {
         alert('密码至少 6 位')
         return
       }
-
       if (this.formData.password !== this.formData.confirmPassword) {
         alert('两次输入的密码不一致！')
         return
       }
 
+      this.loading = true
       try {
-        this.loading = true
         const payload = {
-          username: this.formData.username,
           password: this.formData.password,
-          email: this.formData.email || undefined,
-          phone: this.formData.phone || undefined,
+          verificationCode: this.formData.verificationCode,
           userType: this.formData.userType
+        }
+        if (this.verifyType === 'phone') {
+          payload.phone = this.formData.phone
+        } else {
+          payload.email = this.formData.email
         }
 
         const res = await registerApi(payload)
-
-        if (!res.data || res.data.code !== 200) {
+        if (res.data && res.data.code === 200) {
+          alert('注册成功，请登录')
+          this.$router.push('/login')
+        } else {
           alert(res.data?.message || '注册失败')
-          return
         }
-
-        alert('注册成功，请登录')
-        this.$router.push('/login')
       } catch (e) {
-        const msg = e?.response?.data?.message || '注册请求失败，请稍后重试'
-        alert(msg)
+        alert('错误：' + (e?.response?.data?.message || '注册请求失败'))
       } finally {
         this.loading = false
       }
@@ -162,161 +260,240 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 80vh;
-  padding: 20px;
+  min-height: 100vh;
+  padding: 10px;
+  background-image: url('@/assets/beijing.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+.register-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.35);
+  z-index: 0;
 }
 
 .register-box {
-  background: white;
-  padding: 40px;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.98);
+  padding: 40px 48px;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
   width: 100%;
-  max-width: 400px;
+  max-width: 480px;
+  position: relative;
+  z-index: 1;
 }
 
 h2 {
   text-align: center;
   color: #2c3e50;
-  margin-bottom: 30px;
+  margin: 0 0 28px 0;
+  font-size: 28px;
+  font-weight: 600;
 }
 
-.form-group {
-  margin-bottom: 20px;
+.form-row {
+  margin-bottom: 18px;
 }
 
-label {
+.section-label {
   display: block;
-  margin-bottom: 8px;
+  font-size: 15px;
   color: #555;
+  margin-bottom: 8px;
   font-weight: 500;
 }
 
 input {
   width: 100%;
-  padding: 12px;
+  padding: 12px 16px;
   border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
+  border-radius: 8px;
+  font-size: 16px;
   box-sizing: border-box;
-  transition: border-color 0.3s;
+  transition: border-color 0.2s;
+  height: 44px;
 }
 
 input:focus {
   outline: none;
-  border-color: #42b983;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-actions {
-  margin-top: 30px;
+/* 验证方式选择 */
+.verify-type-selector {
+  display: flex;
+  gap: 8px;
 }
 
-.btn {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 4px;
-  font-size: 16px;
+.radio-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 20px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
+  background: #fafafa;
+  font-size: 16px;
 }
 
-.btn-register {
-  background-color: #42b983;
+.radio-option input[type="radio"] {
+  display: none;
+}
+
+.radio-option.active {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+/* 验证码输入组 */
+.code-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.code-input-group input {
+  flex: 1;
+}
+
+.btn-send-code {
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   color: white;
-  margin-bottom: 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  min-width: 120px;
+  height: 44px;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
-.btn-register:hover {
-  background-color: #35a372;
+.btn-send-code:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
-.btn-link {
-  background-color: transparent;
-  color: #42b983;
-  text-decoration: none;
-  display: block;
-  text-align: center;
-  padding: 10px;
+.btn-send-code:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
-.btn-link:hover {
-  text-decoration: underline;
-}
-
-.back-home {
-  margin-top: 20px;
-  text-align: center;
-}
-
-.back-home a {
-  color: #666;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.back-home a:hover {
-  color: #42b983;
-}
-
+/* 角色选择 */
 .role-selection {
   display: flex;
-  gap: 12px;
-  margin-top: 8px;
+  gap: 8px;
 }
 
 .role-option {
   flex: 1;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
   cursor: pointer;
+  transition: all 0.2s;
+  background: #fafafa;
+  gap: 10px;
 }
 
 .role-option input[type="radio"] {
   display: none;
 }
 
-.role-label {
-  display: flex;
-  align-items: center;
-  padding: 16px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  transition: all 0.3s;
-  background: #fafafa;
-}
-
-.role-option input[type="radio"]:checked + .role-label {
-  border-color: #42b983;
-  background: #f0fdf4;
-  box-shadow: 0 2px 8px rgba(66, 185, 131, 0.2);
+.role-option.active {
+  border-color: #3b82f6;
+  background: #eff6ff;
 }
 
 .role-icon {
-  font-size: 32px;
-  margin-right: 12px;
-  flex-shrink: 0;
+  font-size: 26px;
 }
 
-.role-text {
+.role-name {
+  font-size: 17px;
+  font-weight: 500;
+  color: #333;
+}
+
+/* 按钮 */
+.form-actions {
+  margin-top: 28px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
 }
 
-.role-text strong {
-  font-size: 16px;
-  color: #2c3e50;
+.btn {
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  font-size: 17px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  text-decoration: none;
+}
+
+.btn-register {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
   font-weight: 600;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
 }
 
-.role-text small {
-  font-size: 12px;
-  color: #888;
+.btn-register:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
 }
 
-.role-option:hover .role-label {
-  border-color: #42b983;
-  background: #f9f9f9;
+.btn-register:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-link {
+  background-color: transparent;
+  color: #3b82f6;
+  font-size: 15px;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .register-box {
+    padding: 20px;
+  }
+  
+  .code-input-group {
+    flex-direction: column;
+  }
+  
+  .btn-send-code {
+    width: 100%;
+  }
 }
 </style>
-

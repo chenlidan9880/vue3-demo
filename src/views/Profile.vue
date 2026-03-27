@@ -14,7 +14,7 @@
         <!-- 用户头像和基本信息 -->
         <section class="profile-section">
           <div class="avatar-section">
-            <div class="avatar-wrapper">
+            <div class="avatar-wrapper" @click="triggerFileInput">
               <img 
                 v-if="userInfo.avatar" 
                 :src="userInfo.avatar" 
@@ -23,6 +23,16 @@
               />
               <div v-else class="avatar-placeholder">
                 {{ userInfo.username ? userInfo.username.charAt(0).toUpperCase() : 'U' }}
+              </div>
+              <input 
+                type="file" 
+                ref="fileInput" 
+                accept="image/*" 
+                style="display: none" 
+                @change="handleFileUpload"
+              />
+              <div class="avatar-upload-overlay">
+                <span class="upload-text">点击更换头像</span>
               </div>
             </div>
             <h2>{{ userInfo.username || '用户' }}</h2>
@@ -94,15 +104,7 @@
               />
             </div>
 
-            <div class="form-group">
-              <label>头像URL</label>
-              <input 
-                type="url" 
-                v-model="formData.avatar" 
-                placeholder="请输入头像图片URL"
-                class="form-control"
-              />
-            </div>
+
 
             <div class="form-actions">
               <button type="submit" class="btn btn-primary" :disabled="loading">
@@ -137,13 +139,18 @@
             </div>
           </div>
         </section>
+
+        <!-- 退出登录 -->
+        <section class="profile-section">
+          <button class="btn btn-danger logout-btn" @click="logout">退出登录</button>
+        </section>
       </div>
     </main>
   </div>
 </template>
 
 <script>
-import { getUserProfileApi, updateUserProfileApi } from '@/api/user'
+import { getUserProfileApi, updateUserProfileApi, uploadAvatarApi } from '@/api/user'
 
 export default {
   name: 'ProfilePage',
@@ -155,8 +162,7 @@ export default {
         email: '',
         phone: '',
         gender: null,
-        birthday: '',
-        avatar: ''
+        birthday: ''
       },
       originalFormData: {},
       loading: false
@@ -178,21 +184,20 @@ export default {
     async loadUserProfile() {
       try {
         const response = await getUserProfileApi()
-        if (response.code === 200) {
-          this.userInfo = response.data
+        if (response.data && response.data.code === 200) {
+          this.userInfo = response.data.data
           // 填充表单数据
           this.formData = {
             realName: this.userInfo.realName || '',
             email: this.userInfo.email || '',
             phone: this.userInfo.phone || '',
             gender: this.userInfo.gender !== null ? this.userInfo.gender : null,
-            birthday: this.userInfo.birthday || '',
-            avatar: this.userInfo.avatar || ''
+            birthday: this.userInfo.birthday || ''
           }
           // 保存原始数据用于重置
           this.originalFormData = { ...this.formData }
         } else {
-          this.$message?.error?.(response.message || '获取用户信息失败')
+          this.$message?.error?.(response.data?.message || '获取用户信息失败')
         }
       } catch (error) {
         console.error('获取用户信息失败:', error)
@@ -200,21 +205,43 @@ export default {
       }
     },
     async handleSubmit() {
+      // 表单验证
+      if (!this.formData.realName) {
+        alert('请输入真实姓名')
+        return
+      }
+      if (!this.formData.email) {
+        alert('请输入邮箱')
+        return
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.formData.email)) {
+        alert('请输入有效的邮箱地址')
+        return
+      }
+      if (!this.formData.phone) {
+        alert('请输入手机号')
+        return
+      }
+      if (!/^1[3-9]\d{9}$/.test(this.formData.phone)) {
+        alert('请输入有效的手机号')
+        return
+      }
+      
       this.loading = true
       try {
         const response = await updateUserProfileApi(this.formData)
-        if (response.code === 200) {
+        if (response.data && response.data.code === 200) {
           alert('保存成功！')
           // 更新本地存储的用户信息
           const updatedUserInfo = {
             ...this.userInfo,
-            ...response.data
+            ...response.data.data
           }
           localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo))
           // 重新加载用户信息
           await this.loadUserProfile()
         } else {
-          alert(response.message || '保存失败')
+          alert(response.data?.message || '保存失败')
         }
       } catch (error) {
         console.error('更新用户信息失败:', error)
@@ -227,7 +254,75 @@ export default {
       this.formData = { ...this.originalFormData }
     },
     goBack() {
-      this.$router.push('/dashboard')
+      // 根据用户类型跳转到对应主页
+      try {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
+        const userType = userInfo.userType
+        if (userType === 2) {
+          this.$router.push('/host')
+        } else if (userType === 3) {
+          this.$router.push('/admin')
+        } else {
+          this.$router.push('/dashboard')
+        }
+      } catch (e) {
+        this.$router.push('/dashboard')
+      }
+    },
+
+    logout() {
+      if (confirm('确定要退出登录吗？')) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('userInfo')
+        this.$router.push('/login')
+      }
+    },
+    triggerFileInput() {
+      this.$refs.fileInput.click()
+    },
+    async handleFileUpload(e) {
+      const file = e.target.files[0]
+      if (!file) return
+      
+      try {
+        // 上传文件
+        const response = await uploadAvatarApi(file)
+        if (response.data && response.data.code === 200) {
+          const avatarUrl = response.data.data[0]
+          
+          // 更新用户信息
+          const updateResponse = await updateUserProfileApi({ avatar: avatarUrl })
+          if (updateResponse.data && updateResponse.data.code === 200) {
+            // 更新本地用户信息
+            this.userInfo.avatar = avatarUrl
+            // 更新本地存储
+            const updatedUserInfo = {
+              ...this.userInfo
+            }
+            localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo))
+            // 显示成功消息
+            if (this.$message) {
+              this.$message.success('头像上传成功')
+            } else {
+              alert('头像上传成功')
+            }
+          } else {
+            throw new Error('更新头像失败')
+          }
+        } else {
+          throw new Error('上传文件失败')
+        }
+      } catch (error) {
+        console.error('上传头像失败:', error)
+        if (this.$message) {
+          this.$message.error('上传头像失败，请重试')
+        } else {
+          alert('上传头像失败，请重试')
+        }
+      } finally {
+        // 清空文件输入
+        e.target.value = ''
+      }
     }
   }
 }
@@ -297,12 +392,20 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.avatar-wrapper:hover {
+  transform: scale(1.05);
 }
 
 .avatar-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: opacity 0.2s ease;
 }
 
 .avatar-placeholder {
@@ -314,6 +417,39 @@ export default {
   font-size: 48px;
   color: #42b983;
   font-weight: bold;
+  transition: opacity 0.2s ease;
+}
+
+.avatar-upload-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.avatar-wrapper:hover .avatar-upload-overlay {
+  opacity: 1;
+}
+
+.avatar-wrapper:hover .avatar-img,
+.avatar-wrapper:hover .avatar-placeholder {
+  opacity: 0.7;
+}
+
+.upload-text {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  padding: 0 10px;
 }
 
 .avatar-section h2 {
@@ -418,6 +554,26 @@ export default {
 .btn-back:hover {
   background: #42b983;
   color: #fff;
+}
+
+.btn-danger {
+  background: #ff4d4f;
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background: #ff7875;
+}
+
+.logout-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
 .info-list {

@@ -21,6 +21,32 @@ export function updateUserProfileApi(data) {
   })
 }
 
+/**
+ * 根据用户ID获取用户信息
+ */
+export function getUserByIdApi(userId) {
+  return request({
+    url: `/api/user/${userId}`,
+    method: 'get'
+  })
+}
+
+/**
+ * 上传用户头像
+ */
+export function uploadAvatarApi(file) {
+  const formData = new FormData()
+  formData.append('files', file)
+  return request({
+    url: '/api/host/upload/images',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
 
 
 

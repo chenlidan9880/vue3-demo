@@ -5,7 +5,21 @@
         <h1>房东控制台</h1>
         <p class="subtitle">管理你的房源、价格和预订情况</p>
       </div>
-      <button class="btn btn-outline" @click="backHome">返回前台首页</button>
+      <div class="user-actions">
+        <button class="message-btn" @click="goToMessages" title="在线聊天">
+          <span class="message-icon">💬</span>
+          <span v-if="unreadCount > 0" class="unread-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+        </button>
+        <button class="message-btn" @click="goToNotifications" title="通知中心">
+          <span class="message-icon">🔔</span>
+          <span v-if="notificationCount > 0" class="unread-badge">{{ notificationCount > 99 ? '99+' : notificationCount }}</span>
+        </button>
+        <span class="role-tag">当前角色：{{ roleText }}</span>
+        <button class="profile-btn" @click="goToProfile">
+          <span class="profile-icon">👤</span>
+          <span class="profile-text">个人中心</span>
+        </button>
+      </div>
     </header>
 
     <main class="main">
@@ -26,6 +40,20 @@
           <h2>📅 查看预订情况</h2>
           <p>查看每个房源的预约/订单和入住时间。</p>
         </div>
+        <div class="card" @click="goToCommunity">
+          <h2>💬 社区问答</h2>
+          <p>与其他用户交流，分享民宿经营经验和解答问题。</p>
+        </div>
+        <div class="card" @click="goToMessages">
+          <h2>💬 在线聊天</h2>
+          <p>与租客进行实时沟通，解答疑问和处理预订相关问题。</p>
+          <span v-if="unreadCount > 0" class="unread-indicator">{{ unreadCount }} 条未读</span>
+        </div>
+        <div class="card" @click="goToNotifications">
+          <h2>🔔 消息通知</h2>
+          <p>查看预约申请、订单状态、退款申请等系统通知。</p>
+          <span v-if="notificationCount > 0" class="unread-indicator">{{ notificationCount }} 条未读</span>
+        </div>
       </section>
     </main>
   </div>
@@ -34,10 +62,23 @@
 <script>
 export default {
   name: 'HostDashboardPage',
+  data() {
+    return {
+      notificationCount: 0,
+      unreadCount: 0
+    }
+  },
+  computed: {
+    roleText() {
+      return '房东'
+    }
+  },
+  async created() {
+    await this.fetchNotificationCount()
+    await this.fetchUnreadCount()
+  },
   methods: {
-    backHome() {
-      this.$router.push('/')
-    },
+
     createProperty() {
       this.$router.push('/host/properties/new')
     },
@@ -48,7 +89,41 @@ export default {
       this.$router.push('/host/properties')
     },
     viewBookings() {
-      alert('这里将来跳转到“房东查看预订/订单列表”页面')
+      this.$router.push('/host/bookings')
+    },
+    goToCommunity() {
+      this.$router.push('/community')
+    },
+    goToProfile() {
+      this.$router.push('/profile')
+    },
+    goToMessages() {
+      this.$router.push('/messages')
+    },
+    goToNotifications() {
+      this.$router.push('/notifications')
+    },
+    async fetchNotificationCount() {
+      try {
+        const request = await import('@/api/request')
+        const res = await request.default.get('/api/notifications/unread-count')
+        if (res.data && res.data.code === 200) {
+          this.notificationCount = res.data.data.total || 0
+        }
+      } catch (e) {
+        console.error('获取未读通知数量失败:', e)
+      }
+    },
+    async fetchUnreadCount() {
+      try {
+        const request = await import('@/api/request')
+        const res = await request.default.get('/api/messages/unread-count')
+        if (res.data && res.data.code === 200) {
+          this.unreadCount = res.data.data || 0
+        }
+      } catch (e) {
+        console.error('获取未读消息数量失败:', e)
+      }
     }
   }
 }
@@ -67,6 +142,92 @@ export default {
   padding: 20px 40px;
   background: #ffffff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 32px;
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-tag {
+  font-size: 14px;
+  color: #666;
+}
+
+.message-btn {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.message-btn:hover {
+  transform: scale(1.1);
+}
+
+.unread-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  background: #ff4d4f;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  box-shadow: 0 2px 4px rgba(255, 77, 79, 0.3);
+}
+
+.profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+  color: #666;
+  margin-right: 12px;
+}
+
+.profile-btn:hover {
+  background: #f5f5f5;
+  border-color: #d0d0d0;
+}
+
+.profile-icon {
+  font-size: 16px;
+}
+
+.profile-text {
+  font-weight: 400;
+}
+
+.unread-indicator {
+  display: inline-block;
+  background: #ff4d4f;
+  color: white;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-top: 8px;
+  font-weight: 500;
 }
 
 .header h1 {
